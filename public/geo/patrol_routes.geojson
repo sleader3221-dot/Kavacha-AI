@@ -1,0 +1,86 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "route_id": "ROUTE-1",
+        "label": "Whitefield -> Koramangala",
+        "focus": "Cyber fraud + Vehicle theft",
+        "coverage_estimate": 62,
+        "human_approval_required": true
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            77.7499,
+            12.9698
+          ],
+          [
+            77.68719999999999,
+            12.9825
+          ],
+          [
+            77.6245,
+            12.9352
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "route_id": "ROUTE-2",
+        "label": "Majestic -> KR Puram",
+        "focus": "Theft + Chain snatching",
+        "coverage_estimate": 71,
+        "human_approval_required": true
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            77.5713,
+            12.9767
+          ],
+          [
+            77.63315,
+            13.0221
+          ],
+          [
+            77.695,
+            13.0075
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "route_id": "ROUTE-3",
+        "label": "Koramangala -> Electronic City",
+        "focus": "Cyber fraud + Theft",
+        "coverage_estimate": 80,
+        "human_approval_required": true
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            77.6245,
+            12.9352
+          ],
+          [
+            77.64235,
+            12.9202
+          ],
+          [
+            77.6602,
+            12.8452
+          ]
+        ]
+      }
+    }
+  ]
+}

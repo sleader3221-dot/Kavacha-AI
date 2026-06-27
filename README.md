@@ -1,8 +1,10 @@
 # Kavacha AI (ಕವಚ)
 
-Kannada-first crime intelligence copilot for authorised Karnataka State Police workflows.
+Catalyst-deployable Kannada-first crime intelligence copilot for authorised Karnataka State Police workflows.
 
 Kavacha AI is not a surveillance tool. It is an explainable crime intelligence copilot for authorised police users. It helps officers query crime records, detect area-level trends, understand case networks, prioritise patrol resources, and generate accountable reports with full audit trails.
+
+Default mode: API-free advanced mode. Kavacha works without Gemini/OpenAI/Groq/MapTiler/Neo4j/BHASHINI/QuickML keys by using local deterministic intelligence, synthetic SCRB-style data, local GeoJSON, local graph algorithms, local risk scoring, browser voice fallback, QR audit verification, and Catalyst-ready adapters.
 
 ## What Is Working
 
@@ -20,6 +22,9 @@ Kavacha AI is not a surveillance tool. It is an explainable crime intelligence c
 - Audit trail API and UI
 - DPDP-safe Trust Center with RBAC, privacy toggle, fairness checks, source register, and admin monitor
 - 50K+ synthetic CCTNS-style records generated deterministically in the server data layer
+- Exported CSV and GeoJSON proof artifacts under `data/generated/` and `public/geo/`
+- MapLibre GeoOps map with local GeoJSON layers, risk grid, heatmap, patrol routes, station markers, and live pulse
+- Optional Catalyst, Neo4j, BHASHINI, IndicTrans2, QuickML, and MapTiler adapters with no-key local fallbacks
 - TypeScript, production build, tests, and npm audit passing
 - Cytoscape runtime lifecycle hardened by disabling animated layout and explicitly cleaning up graph renderers
 

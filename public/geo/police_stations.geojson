@@ -1,0 +1,205 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "station_id": "blr-whitefield",
+        "station_name": "Whitefield",
+        "division": "East",
+        "district": "Bengaluru City",
+        "beat_code": "WFD-4",
+        "risk_score": 91,
+        "lead_categories": "Cyber fraud, Vehicle theft",
+        "patrol_window": "19:00-23:30"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.7499,
+          12.9698
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "station_id": "blr-majestic",
+        "station_name": "Majestic",
+        "division": "Central",
+        "district": "Bengaluru City",
+        "beat_code": "CEN-2",
+        "risk_score": 88,
+        "lead_categories": "Theft, Chain snatching",
+        "patrol_window": "18:00-22:00"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.5713,
+          12.9767
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "station_id": "blr-koramangala",
+        "station_name": "Koramangala",
+        "division": "South East",
+        "district": "Bengaluru City",
+        "beat_code": "KRM-6",
+        "risk_score": 84,
+        "lead_categories": "Cyber fraud, Theft",
+        "patrol_window": "20:00-00:30"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.6245,
+          12.9352
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "station_id": "blr-indiranagar",
+        "station_name": "Indiranagar",
+        "division": "East",
+        "district": "Bengaluru City",
+        "beat_code": "IND-3",
+        "risk_score": 80,
+        "lead_categories": "Theft, Women safety",
+        "patrol_window": "19:30-23:30"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.6408,
+          12.9784
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "station_id": "blr-electronic-city",
+        "station_name": "Electronic City",
+        "division": "South East",
+        "district": "Bengaluru City",
+        "beat_code": "ELC-5",
+        "risk_score": 78,
+        "lead_categories": "Cyber fraud, NDPS",
+        "patrol_window": "17:30-21:30"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.6602,
+          12.8452
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "station_id": "blr-kr-puram",
+        "station_name": "KR Puram",
+        "division": "East",
+        "district": "Bengaluru City",
+        "beat_code": "KRP-2",
+        "risk_score": 76,
+        "lead_categories": "Vehicle theft, Theft",
+        "patrol_window": "06:30-09:30"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.695,
+          13.0075
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "station_id": "blr-yelahanka",
+        "station_name": "Yelahanka",
+        "division": "North",
+        "district": "Bengaluru City",
+        "beat_code": "YLK-1",
+        "risk_score": 72,
+        "lead_categories": "Senior citizen safety, Theft",
+        "patrol_window": "17:00-21:00"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.5963,
+          13.1007
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "station_id": "blr-jayanagar",
+        "station_name": "Jayanagar",
+        "division": "South",
+        "district": "Bengaluru City",
+        "beat_code": "JYN-4",
+        "risk_score": 69,
+        "lead_categories": "Chain snatching, Women safety",
+        "patrol_window": "16:30-20:30"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.5938,
+          12.925
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "station_id": "blr-banashankari",
+        "station_name": "Banashankari",
+        "division": "South",
+        "district": "Bengaluru City",
+        "beat_code": "BSK-3",
+        "risk_score": 64,
+        "lead_categories": "Theft, Senior citizen safety",
+        "patrol_window": "07:00-10:00"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.5468,
+          12.9255
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "station_id": "blr-hebbal",
+        "station_name": "Hebbal",
+        "division": "North",
+        "district": "Bengaluru City",
+        "beat_code": "HBL-2",
+        "risk_score": 62,
+        "lead_categories": "Vehicle theft, NDPS",
+        "patrol_window": "18:30-22:30"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.597,
+          13.0358
+        ]
+      }
+    }
+  ]
+}

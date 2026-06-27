@@ -5,6 +5,8 @@ The local MVP generates deterministic synthetic SCRB/CCTNS-style records on the 
 ## Implemented Scale
 
 - 84,365 synthetic case records
+- 50,000 exported case rows in `data/generated/cases.csv`
+- Local GeoJSON files in `data/generated/` and `public/geo/`
 - Five intelligence packs: theft, cyber fraud, NDPS, women/children safety, senior citizen safety
 - Masked FIR, person, phone, bank, UPI, SIM, vehicle, and digital artifact identifiers
 - Station and beat-level Bengaluru hotspot coordinates

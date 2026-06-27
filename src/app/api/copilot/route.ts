@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { appendAuditLog } from "@/lib/audit-store";
+import { writeAuditToCatalystOrFallback } from "@/lib/catalyst/audit";
 import { answerCopilotQuery } from "@/lib/query-engine";
 
 export const runtime = "nodejs";
@@ -24,7 +24,7 @@ export async function POST(request: Request) {
     }
 
     const result = answerCopilotQuery(parsed.data);
-    appendAuditLog(result.audit);
+    writeAuditToCatalystOrFallback(result.audit);
 
     return NextResponse.json(result, {
       headers: {

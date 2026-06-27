@@ -60,6 +60,7 @@ import {
   RESEARCH_SOURCES,
   ROLES
 } from "@/lib/catalog";
+import { GeoOpsMap } from "@/components/map/geo-ops-map";
 import type {
   Alert,
   AuditLog,
@@ -506,6 +507,13 @@ function CommandCenter({
         <MetricTile icon={LockKeyhole} label="May 2026 Cyber" value={formatNumber(snapshot.officialStats.may2026Cyber)} tone="bg-[var(--indigo)]" />
         <MetricTile icon={ShieldCheck} label="Audit Mode" value="DPDP-safe" tone="bg-[var(--vermillion)]" />
       </div>
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+        <MetricTile icon={Database} label="Data Mode" value="Synthetic" tone="bg-[var(--teal)]" />
+        <MetricTile icon={Radio} label="Stream" value="3.5 sec" tone="bg-[var(--saffron)]" />
+        <MetricTile icon={Network} label="Graph" value="Local POLE" tone="bg-[var(--indigo)]" />
+        <MetricTile icon={Activity} label="ML Mode" value="Local Risk" tone="bg-[var(--vermillion)]" />
+        <MetricTile icon={ShieldCheck} label="Catalyst" value="Ready" tone="bg-[#6f8f72]" />
+      </div>
 
       <div className="grid gap-4 xl:grid-cols-[1.35fr_0.65fr]">
         <Panel>
@@ -815,50 +823,12 @@ function HotspotMap({
       <Panel>
         <PanelTitle icon={MapPinned} title="Bengaluru Hotspot Intelligence" />
         <div className="grid gap-4 p-4 xl:grid-cols-[1.4fr_0.6fr]">
-          <div className="relative overflow-hidden rounded-lg border border-[var(--line)] bg-[#eef5f1]">
-            <svg viewBox="0 0 100 100" className="h-[520px] w-full">
-              <defs>
-                <linearGradient id="mapwash" x1="0" y1="0" x2="1" y2="1">
-                  <stop offset="0%" stopColor="#f8faf7" />
-                  <stop offset="100%" stopColor="#dce8e1" />
-                </linearGradient>
-                <filter id="softShadow">
-                  <feDropShadow dx="0" dy="8" stdDeviation="5" floodColor="#14181b" floodOpacity="0.18" />
-                </filter>
-              </defs>
-              <path
-                d="M18,16 C33,6 56,7 72,19 C89,32 89,54 79,73 C68,94 39,94 22,81 C6,68 6,35 18,16 Z"
-                fill="url(#mapwash)"
-                stroke="#9db6aa"
-                strokeWidth="0.7"
-                filter="url(#softShadow)"
-              />
-              <path d="M24 28 C39 36 53 32 74 42" stroke="#b6c8bf" strokeWidth="0.7" fill="none" />
-              <path d="M21 62 C38 52 56 60 80 55" stroke="#b6c8bf" strokeWidth="0.7" fill="none" />
-              <path d="M44 14 C42 34 48 56 43 87" stroke="#b6c8bf" strokeWidth="0.7" fill="none" />
-              <path d="M62 20 C55 39 61 57 69 80" stroke="#b6c8bf" strokeWidth="0.7" fill="none" />
-              {hotspots.map((hotspot, index) => {
-                const point = toPoint(hotspot.lat, hotspot.lng);
-                const selected = hotspot.stationId === selectedStationId;
-                const live = liveEvent?.stationId === hotspot.stationId;
-                const color = HEAT_COLORS[index % HEAT_COLORS.length];
-                const radius = 5 + hotspot.riskScore * 10;
-                return (
-                  <g key={hotspot.stationId} role="button" onClick={() => setSelectedStationId(hotspot.stationId)} className="cursor-pointer">
-                    <circle cx={point.x} cy={point.y} r={radius} fill={color} opacity={live ? 0.34 : 0.2} />
-                    <circle cx={point.x} cy={point.y} r={selected ? 3.8 : 2.8} fill={color} stroke="#fff" strokeWidth="0.9" />
-                    {live && <circle cx={point.x} cy={point.y} r={radius + 3} fill="none" stroke={color} strokeWidth="0.8" opacity="0.85" />}
-                    <text x={point.x + 3} y={point.y - 2} fontSize="2.8" fill="#14181b" fontWeight="700">
-                      {hotspot.station}
-                    </text>
-                  </g>
-                );
-              })}
-            </svg>
-            <div className="absolute left-4 top-4 rounded-md border border-[var(--line)] bg-white/95 px-3 py-2 text-sm font-semibold shadow">
-              Bengaluru City · May 2026
-            </div>
-          </div>
+          <GeoOpsMap
+            hotspots={hotspots}
+            selectedStationId={selectedStationId}
+            setSelectedStationId={setSelectedStationId}
+            liveEvent={liveEvent}
+          />
 
           <div className="space-y-3">
             {hotspots.slice(0, 7).map((hotspot, index) => (

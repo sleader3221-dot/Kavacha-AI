@@ -1,0 +1,31 @@
+{
+  "functions": {},
+  "appsail": [
+    {
+      "name": "kavacha-ai",
+      "source": ".",
+      "platform": "nodejs",
+      "build_path": ".next",
+      "scripts": {
+        "predeploy": "npm ci && npm run build",
+        "start": "npm run start"
+      },
+      "env_variables": {
+        "NEXT_PUBLIC_DATA_MODE": "synthetic",
+        "NEXT_PUBLIC_ENABLE_DEMO_MODE": "true",
+        "LLM_PROVIDER": "local",
+        "VOICE_PROVIDER": "browser",
+        "MAP_PROVIDER": "local",
+        "GRAPH_PROVIDER": "local",
+        "ML_PROVIDER": "local",
+        "SYNTHETIC_STREAM_ENABLED": "true",
+        "SYNTHETIC_STREAM_INTERVAL_MS": "3500",
+        "RBAC_ENFORCEMENT": "true",
+        "MASK_PII_BY_DEFAULT": "true",
+        "SENSITIVE_CASE_AGGREGATE_ONLY": "true",
+        "REPORTS_ENABLED": "true",
+        "MISSION_BRIEF_QR_ENABLED": "true"
+      }
+    }
+  ]
+}
