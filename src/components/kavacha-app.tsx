@@ -185,6 +185,96 @@ function formatTime(value: string) {
   }).format(new Date(value));
 }
 
+async function readJsonOrThrow<T>(response: Response, label: string): Promise<T> {
+  if (!response.ok) throw new Error(`${label} failed with status ${response.status}`);
+  const text = await response.text();
+  if (!text.trim()) throw new Error(`${label} returned an empty response`);
+  return JSON.parse(text) as T;
+}
+
+function buildClientRealtimeEvent(snapshot: DashboardSnapshot, sequence: number): RealtimeEvent {
+  const station = BENGALURU_STATIONS[sequence % BENGALURU_STATIONS.length] ?? BENGALURU_STATIONS[0];
+  const hotspot =
+    snapshot.hotspots[sequence % snapshot.hotspots.length] ??
+    snapshot.hotspots[0] ?? {
+      stationId: station.id,
+      station: station.name,
+      district: station.district,
+      beat: station.beat,
+      lat: station.lat,
+      lng: station.lng,
+      crimeHeads: station.leadCategories,
+      riskScore: station.risk,
+      confidence: 0.82,
+      trendDelta: station.trend,
+      explanation: "Client realtime fallback from station risk catalogue.",
+      patrolWindow: station.patrolWindow
+    };
+  const matchedStation = BENGALURU_STATIONS.find((item) => item.id === hotspot.stationId) ?? station;
+  const timestamp = new Date().toISOString();
+  const riskScore = Math.min(0.97, Math.max(0.54, hotspot.riskScore + (sequence % 4) * 0.012));
+  const crimeHead = hotspot.crimeHeads[sequence % hotspot.crimeHeads.length] ?? matchedStation.leadCategories[0] ?? "Theft";
+  const seedAlert = snapshot.alerts[sequence % snapshot.alerts.length];
+  const signals = [
+    "Client synthetic case ingest committed",
+    "Hotspot confidence recalculated",
+    "Patrol-window alert refreshed",
+    "Graph evidence watchlist rescored"
+  ];
+
+  return {
+    sequence,
+    timestamp,
+    stationId: matchedStation.id,
+    station: matchedStation.name,
+    beat: matchedStation.beat,
+    signal: signals[sequence % signals.length],
+    riskScore: Number(riskScore.toFixed(3)),
+    alert: seedAlert
+      ? {
+          ...seedAlert,
+          alert_id: `${seedAlert.alert_id}-client-${sequence}`,
+          crime_head: crimeHead,
+          area: `${matchedStation.name} / ${matchedStation.beat}`,
+          confidence: Number(Math.min(0.96, Math.max(seedAlert.confidence, riskScore)).toFixed(2)),
+          updated_at: timestamp
+        }
+      : {
+          alert_id: `ALERT-CLIENT-${sequence}`,
+          crime_head: crimeHead,
+          area: `${matchedStation.name} / ${matchedStation.beat}`,
+          confidence: Number(Math.min(0.94, riskScore).toFixed(2)),
+          severity: riskScore > 0.86 ? "urgent" : riskScore > 0.74 ? "elevated" : "watch",
+          explanation: `${matchedStation.name} synthetic live signal rose during ${matchedStation.patrolWindow}.`,
+          recommended_action: "Review beat-level patrol plan and approve any field action manually.",
+          updated_at: timestamp
+        }
+  };
+}
+
+function buildLocalGraphResponse(graph: NetworkGraph): GraphQueryResponse {
+  const centrality = graph.nodes
+    .map((node) => ({
+      id: node.id,
+      label: node.label,
+      degree: graph.edges.filter((edge) => edge.source === node.id || edge.target === node.id).length
+    }))
+    .sort((left, right) => right.degree - left.degree)
+    .slice(0, 8);
+
+  return {
+    mode: "local POLE graph fallback",
+    graph,
+    components: graph.nodes.length > 0 ? [graph.nodes.map((node) => node.id)] : [],
+    centrality,
+    shortestPath: graph.edges[0] ? [graph.edges[0].source, graph.edges[0].target] : [],
+    edgeExplanation: {
+      found: graph.edges.length > 0,
+      explanation: "Client snapshot graph active while the deployed graph API is unavailable."
+    }
+  };
+}
+
 function buildClientFallbackCopilotResult(
   query: string,
   role: RoleId,
@@ -326,49 +416,90 @@ export function KavachaApp({ initialSnapshot }: KavachaAppProps) {
 
   useEffect(() => {
     let pollTimer: ReturnType<typeof setInterval> | undefined;
+    let clientTimer: ReturnType<typeof setInterval> | undefined;
+    let startupTimer: ReturnType<typeof setTimeout> | undefined;
     let pollingStarted = false;
+    let clientStarted = false;
+    let gotServerEvent = false;
+    let clientSequence = 0;
+    let eventSource: EventSource | null = null;
+
+    function pushLiveEvent(payload: RealtimeEvent, mode: RealtimeMode) {
+      setLiveEvents((events) => [payload, ...events].slice(0, 8));
+      if (payload.stationId) setSelectedStationId(payload.stationId);
+      setRealtimeMode(mode);
+    }
+
+    function pushClientEvent() {
+      const payload = buildClientRealtimeEvent(initialSnapshot, clientSequence);
+      clientSequence += 1;
+      pushLiveEvent(payload, "offline");
+    }
+
+    function startClientRealtime() {
+      if (clientStarted) return;
+      clientStarted = true;
+      eventSource?.close();
+      if (pollTimer) clearInterval(pollTimer);
+      setSystemNotice("Zoho realtime APIs returned empty data. Client realtime stream activated.");
+      pushClientEvent();
+      clientTimer = setInterval(pushClientEvent, 3500);
+    }
+
+    function startPolling() {
+      if (pollingStarted || clientStarted) return;
+      pollingStarted = true;
+      eventSource?.close();
+      void pollRealtime();
+      pollTimer = setInterval(() => void pollRealtime(), 5000);
+    }
 
     async function pollRealtime() {
       try {
         const response = await fetch("/api/realtime/poll", { cache: "no-store" });
-        if (!response.ok) throw new Error(`Realtime poll failed with status ${response.status}`);
-        const payload = (await response.json()) as RealtimeEvent;
-        setLiveEvents((events) => [payload, ...events].slice(0, 8));
-        if (payload.stationId) setSelectedStationId(payload.stationId);
-        setRealtimeMode("polling");
+        const payload = await readJsonOrThrow<RealtimeEvent>(response, "Realtime poll");
+        gotServerEvent = true;
+        pushLiveEvent(payload, "polling");
       } catch {
-        setRealtimeMode("offline");
-        setSystemNotice("Realtime API unavailable. Showing offline deterministic demo state.");
+        startClientRealtime();
       }
     }
 
-    const eventSource = new EventSource("/api/realtime");
+    if (typeof EventSource === "undefined") {
+      startPolling();
+      return () => {
+        if (pollTimer) clearInterval(pollTimer);
+        if (clientTimer) clearInterval(clientTimer);
+      };
+    }
+
+    eventSource = new EventSource("/api/realtime");
     const handleUpdate = (message: MessageEvent<string>) => {
       try {
         const payload = JSON.parse(message.data) as RealtimeEvent;
-        setLiveEvents((events) => [payload, ...events].slice(0, 8));
-        if (payload.stationId) setSelectedStationId(payload.stationId);
-        setRealtimeMode("sse");
+        gotServerEvent = true;
+        pushLiveEvent(payload, "sse");
       } catch {
-        setRealtimeMode("offline");
+        startPolling();
       }
     };
 
     eventSource.addEventListener("ready", handleUpdate);
     eventSource.addEventListener("update", handleUpdate);
     eventSource.onerror = () => {
-      eventSource.close();
-      if (pollingStarted) return;
-      pollingStarted = true;
-      void pollRealtime();
-      pollTimer = setInterval(() => void pollRealtime(), 5000);
+      startPolling();
     };
+    startupTimer = setTimeout(() => {
+      if (!gotServerEvent) startPolling();
+    }, 4500);
 
     return () => {
-      eventSource.close();
+      eventSource?.close();
       if (pollTimer) clearInterval(pollTimer);
+      if (clientTimer) clearInterval(clientTimer);
+      if (startupTimer) clearTimeout(startupTimer);
     };
-  }, []);
+  }, [initialSnapshot]);
 
   useEffect(() => {
     void refreshAuditLogs();
@@ -377,11 +508,12 @@ export function KavachaApp({ initialSnapshot }: KavachaAppProps) {
   async function refreshAuditLogs() {
     try {
       const response = await fetch("/api/audit", { cache: "no-store" });
-      if (!response.ok) throw new Error(`Audit failed with status ${response.status}`);
-      const data = (await response.json()) as { mode?: string; logs: AuditLog[] };
-      setAuditLogs(data.logs);
+      const data = await readJsonOrThrow<{ mode?: string; logs: AuditLog[] }>(response, "Audit");
+      setAuditLogs(Array.isArray(data.logs) ? data.logs : []);
       setAuditMode(data.mode?.toLowerCase().includes("catalyst") ? "API" : "Memory fallback");
     } catch {
+      const fallbackAudit = copilotResult?.audit ?? buildClientFallbackCopilotResult(query, role, initialSnapshot).audit;
+      setAuditLogs((logs) => [fallbackAudit, ...logs.filter((log) => log.audit_id !== fallbackAudit.audit_id)].slice(0, 100));
       setAuditMode("Memory fallback");
       setSystemNotice("Audit API unavailable. Showing local demo audit state.");
     }
@@ -397,13 +529,10 @@ export function KavachaApp({ initialSnapshot }: KavachaAppProps) {
         body: JSON.stringify({ query: nextQuery, role, userId: `demo.${role}` })
       });
 
-      if (!response.ok) {
-        throw new Error(`Copilot failed with status ${response.status}`);
-      }
-
-      const result = (await response.json()) as CopilotResult;
+      const result = await readJsonOrThrow<CopilotResult>(response, "Copilot");
       setCopilotApiMode("online");
       setCopilotResult(result);
+      setAuditLogs((logs) => [result.audit, ...logs.filter((log) => log.audit_id !== result.audit.audit_id)].slice(0, 100));
       setActiveView("copilot");
       try {
         await refreshAuditLogs();
@@ -414,6 +543,8 @@ export function KavachaApp({ initialSnapshot }: KavachaAppProps) {
       const fallback = buildClientFallbackCopilotResult(nextQuery, role, initialSnapshot);
       setCopilotApiMode("offline-fallback");
       setCopilotResult(fallback);
+      setAuditLogs((logs) => [fallback.audit, ...logs.filter((log) => log.audit_id !== fallback.audit.audit_id)].slice(0, 100));
+      setAuditMode("Memory fallback");
       setActiveView("copilot");
       setSystemNotice("Copilot API unavailable. Offline deterministic demo engine activated.");
     } finally {
@@ -428,8 +559,7 @@ export function KavachaApp({ initialSnapshot }: KavachaAppProps) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text })
       });
-      if (!response.ok) throw new Error(`Voice failed with status ${response.status}`);
-      const payload = (await response.json()) as VoiceInsight;
+      const payload = await readJsonOrThrow<VoiceInsight>(response, "Voice");
       const canonical = payload.translation || text;
       setVoiceInsight(payload);
       setQuery(canonical);
@@ -1316,8 +1446,7 @@ function NetworkGraphPanel({
     async function loadGraph() {
       try {
         const response = await fetch("/api/graph/query", { cache: "no-store" });
-        if (!response.ok) throw new Error(`Graph query failed with status ${response.status}`);
-        const payload = (await response.json()) as GraphQueryResponse;
+        const payload = await readJsonOrThrow<GraphQueryResponse>(response, "Graph query");
         if (cancelled) return;
         setGraphState(payload.graph);
         setSelectedEdge(payload.graph.edges[0] ?? null);
@@ -1326,6 +1455,10 @@ function NetworkGraphPanel({
         setGraphMode(payload.mode);
       } catch {
         if (cancelled) return;
+        const fallback = buildLocalGraphResponse(graph);
+        setGraphMeta(fallback);
+        setGraphState(fallback.graph);
+        setSelectedEdge(fallback.graph.edges[0] ?? null);
         setGraphStatus("Local snapshot graph fallback active");
         setGraphMode("local POLE graph fallback");
       }
