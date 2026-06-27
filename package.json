@@ -5,8 +5,8 @@
   "description": "Kannada-first crime intelligence copilot for authorised Karnataka Police workflows.",
   "scripts": {
     "dev": "next dev",
-    "build": "next build && node scripts/copy-standalone-assets.mjs",
-    "start": "node .next/standalone/server.js",
+    "build": "next build",
+    "start": "next start",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "dataset:export": "tsx scripts/export-csv.ts",

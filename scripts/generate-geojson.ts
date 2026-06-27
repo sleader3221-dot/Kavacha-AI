@@ -9,16 +9,27 @@ const publicDir = join(process.cwd(), "public", "geo");
 mkdirSync(dataDir, { recursive: true });
 mkdirSync(publicDir, { recursive: true });
 
-const files = {
+const generatedFiles = {
   "synthetic_case_points.geojson": generateSyntheticCasePoints(50000),
   "police_stations.geojson": stationGeoJson(),
   "risk_grid.geojson": generateRiskGrid(),
   "patrol_routes.geojson": patrolRouteGeoJson()
 };
 
-Object.entries(files).forEach(([name, data]) => {
+const publicFiles = {
+  "synthetic_case_points.geojson": generateSyntheticCasePoints(600),
+  "police_stations.geojson": stationGeoJson(),
+  "risk_grid.geojson": generateRiskGrid(),
+  "patrol_routes.geojson": patrolRouteGeoJson()
+};
+
+Object.entries(generatedFiles).forEach(([name, data]) => {
   const text = JSON.stringify(data, null, 2);
   writeFileSync(join(dataDir, name), text, "utf8");
+});
+
+Object.entries(publicFiles).forEach(([name, data]) => {
+  const text = JSON.stringify(data, null, 2);
   writeFileSync(join(publicDir, name), text, "utf8");
 });
 
