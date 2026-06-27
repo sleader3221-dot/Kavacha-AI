@@ -12,3 +12,5 @@ tsconfig.tsbuildinfo
 .env.local
 .env.*.local
 out/
+data/generated/*.csv
+data/generated/*.geojson

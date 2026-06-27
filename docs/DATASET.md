@@ -5,8 +5,9 @@ The local MVP generates deterministic synthetic SCRB/CCTNS-style records on the 
 ## Implemented Scale
 
 - 84,365 synthetic case records
-- 50,000 exported case rows in `data/generated/cases.csv`
-- Local GeoJSON files in `data/generated/` and `public/geo/`
+- Full case exports can be generated locally with `npm run dataset:export`
+- Local GeoJSON proof files can be generated with `npm run geo:generate`
+- Lightweight deploy-safe GeoJSON previews are kept in `public/geo/`
 - Five intelligence packs: theft, cyber fraud, NDPS, women/children safety, senior citizen safety
 - Masked FIR, person, phone, bank, UPI, SIM, vehicle, and digital artifact identifiers
 - Station and beat-level Bengaluru hotspot coordinates
@@ -26,6 +27,8 @@ Recommended CSV exports for Catalyst/Neo4j ingestion:
 - `modus_operandi.csv`
 - `alerts.csv`
 - `audit_logs.csv`
+
+These generated files are intentionally ignored in Git to keep Zoho Slate/OpenNext deployment artifacts small. They are reproducible from the source generator.
 
 ## Hidden Pattern Strategy
 
