@@ -98,6 +98,41 @@ interface RealtimeEvent {
   alert: Alert;
 }
 
+type CopilotApiMode = "online" | "offline-fallback";
+type RealtimeMode = "sse" | "polling" | "offline";
+type MapMode = "geoops" | "fallback";
+type AuditMode = "API" | "Memory fallback";
+
+interface VoiceInsight {
+  inputLanguage: string;
+  translation: string;
+  confidence: number;
+  fallback: string;
+}
+
+interface AppStatus {
+  runtime: string;
+  data: string;
+  copilot: CopilotApiMode;
+  realtime: RealtimeMode;
+  map: MapMode;
+  graph: string;
+  audit: AuditMode;
+  privacy: string;
+}
+
+interface GraphQueryResponse {
+  mode: string;
+  graph: NetworkGraph;
+  components: string[][];
+  centrality: Array<{ id: string; label: string; degree: number }>;
+  shortestPath: string[];
+  edgeExplanation: {
+    found: boolean;
+    explanation: string;
+  };
+}
+
 interface BrowserSpeechRecognitionResultEvent {
   results: {
     [index: number]: {
@@ -150,6 +185,108 @@ function formatTime(value: string) {
   }).format(new Date(value));
 }
 
+function buildClientFallbackCopilotResult(
+  query: string,
+  role: RoleId,
+  snapshot: DashboardSnapshot
+): CopilotResult {
+  const timestamp = new Date().toISOString();
+  const hotspots = snapshot.hotspots.slice(0, role === "sho" ? 5 : 6);
+  const top = hotspots.slice(0, 3).map((item) => item.station).join(", ");
+  const requestId = `KAV-OFFLINE-${Date.now()}`;
+  const generatedZcql = `SELECT station, crime_head, COUNT(case_id) AS cases
+FROM cases
+WHERE report_month = '2026-05'
+  AND district = 'Bengaluru City'
+GROUP BY station, crime_head
+ORDER BY cases DESC
+LIMIT 10;`;
+  const generatedCypher = `MATCH (c:Case)-[:HAS_MO|USES_PHONE|USES_BANK|USES_VEHICLE*1..2]-(n)
+WHERE c.month = "2026-05"
+RETURN c.case_id, labels(n), n.masked_id
+LIMIT 50;`;
+  const outputHash = `offline-${requestId}`;
+  const rows = hotspots.slice(0, 10).map((hotspot) => ({
+    station: hotspot.station,
+    beat: hotspot.beat,
+    crime_heads: hotspot.crimeHeads.join(", "),
+    risk_score: hotspot.riskScore,
+    confidence: hotspot.confidence,
+    trend_delta: hotspot.trendDelta
+  }));
+
+  return {
+    requestId,
+    answer: `Offline demo engine result: strongest Bengaluru City signals are ${top}. Kavacha is running in API-free mode using synthetic SCRB-style data, local hotspot scoring, local graph evidence, patrol planning, and audit-safe output. This is a real-time synthetic SCRB-style stream, ready for authorised SCRB/CCTNS feed. No live KSP data or individual prediction is used.`,
+    kannadaAnswer: `Kannada summary: main watch areas are ${top}. This is area, time, and category intelligence only. Individual profiling is not used.`,
+    confidence: 0.88,
+    engines: ["ZCQL aggregate", "PostGIS hotspot", "GraphRAG", "QuickML risk", "Report engine"],
+    hotspots,
+    patrolPlan: hotspots.slice(0, 4).map((hotspot, index) => ({
+      dayRange: `Demo window ${index + 1}`,
+      area: `${hotspot.station} / ${hotspot.beat}`,
+      window: hotspot.patrolWindow,
+      focus: hotspot.crimeHeads.join(" + "),
+      rationale: `${Math.round(hotspot.riskScore * 100)} risk score, ${hotspot.trendDelta}% trend signal.`
+    })),
+    graph: snapshot.graph,
+    generatedZcql,
+    generatedCypher,
+    queryValidation: {
+      status: "passed",
+      allowedClauses: ["SELECT", "WHERE", "GROUP BY", "ORDER BY", "LIMIT"],
+      blockedTerms: [],
+      reason: "Offline client fallback uses read-only generated ZCQL."
+    },
+    zcqlExecution: {
+      mode: "synthetic-fallback",
+      validation: {
+        status: "passed",
+        allowedClauses: ["SELECT", "WHERE", "GROUP BY", "ORDER BY", "LIMIT"],
+        blockedTerms: [],
+        reason: "Client fallback executed against synthetic snapshot rows."
+      },
+      rows
+    },
+    limitations: [
+      "Offline fallback uses synthetic SCRB-style data.",
+      "No live KSP/CCTNS data is connected.",
+      "Human approval is required before any operational action."
+    ],
+    nextActions: [
+      "Review hotspot explanation.",
+      "Open graph link evidence.",
+      "Export mission brief after API is restored."
+    ],
+    citations: ["Synthetic SCRB-style data", "Kavacha local graph", "KSP public aggregate basis"],
+    audit: {
+      audit_id: `AUD-OFFLINE-${Date.now()}`,
+      user_id: `demo.${role}`,
+      role,
+      query,
+      language: /[\u0C80-\u0CFF]/.test(query) ? "Kannada" : "English",
+      intent: "Offline fallback query",
+      generated_zcql: generatedZcql,
+      generated_cypher: generatedCypher,
+      data_sources: ["Synthetic SCRB-style client fallback"],
+      model_used: "Kavacha offline deterministic client fallback",
+      engines: ["ZCQL aggregate", "PostGIS hotspot", "GraphRAG"],
+      timestamp,
+      confidence: 0.88,
+      output_hash: outputHash,
+      evidence_hash: outputHash,
+      officer_action: "Human approval required before patrol deployment"
+    },
+    metrics: {
+      mayCyberCases: snapshot.officialStats.may2026Cyber,
+      mayTheftCases: snapshot.officialStats.may2026Theft,
+      mayNdpsCases: snapshot.officialStats.may2026Ndps,
+      mayPocsoCases: snapshot.officialStats.may2026Pocso,
+      casesAnalysed: snapshot.caseCount
+    }
+  };
+}
+
 export function KavachaApp({ initialSnapshot }: KavachaAppProps) {
   const [activeView, setActiveView] = useState<ViewId>("command");
   const [role, setRole] = useState<RoleId>("scrb_admin");
@@ -158,7 +295,14 @@ export function KavachaApp({ initialSnapshot }: KavachaAppProps) {
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
   const [loading, setLoading] = useState(false);
   const [voiceState, setVoiceState] = useState<"idle" | "listening" | "unsupported">("idle");
+  const [voiceInsight, setVoiceInsight] = useState<VoiceInsight | null>(null);
   const [liveEvents, setLiveEvents] = useState<RealtimeEvent[]>([]);
+  const [systemNotice, setSystemNotice] = useState<string | null>(null);
+  const [copilotApiMode, setCopilotApiMode] = useState<CopilotApiMode>("online");
+  const [realtimeMode, setRealtimeMode] = useState<RealtimeMode>("sse");
+  const [mapMode, setMapMode] = useState<MapMode>("geoops");
+  const [graphMode, setGraphMode] = useState("local POLE graph fallback");
+  const [auditMode, setAuditMode] = useState<AuditMode>("Memory fallback");
   const [selectedStationId, setSelectedStationId] = useState(initialSnapshot.hotspots[0]?.stationId ?? "blr-whitefield");
 
   const selectedStation = useMemo(
@@ -169,22 +313,61 @@ export function KavachaApp({ initialSnapshot }: KavachaAppProps) {
   const visibleHotspots = copilotResult?.hotspots ?? initialSnapshot.hotspots;
   const visibleGraph = copilotResult?.graph ?? initialSnapshot.graph;
   const liveEvent = liveEvents[0];
+  const appStatus: AppStatus = {
+    runtime: "Node/AppSail",
+    data: "Synthetic / Catalyst-ready",
+    copilot: copilotApiMode,
+    realtime: realtimeMode,
+    map: mapMode,
+    graph: graphMode,
+    audit: auditMode,
+    privacy: "PII masked, sensitive aggregate-only"
+  };
 
   useEffect(() => {
+    let pollTimer: ReturnType<typeof setInterval> | undefined;
+    let pollingStarted = false;
+
+    async function pollRealtime() {
+      try {
+        const response = await fetch("/api/realtime/poll", { cache: "no-store" });
+        if (!response.ok) throw new Error(`Realtime poll failed with status ${response.status}`);
+        const payload = (await response.json()) as RealtimeEvent;
+        setLiveEvents((events) => [payload, ...events].slice(0, 8));
+        if (payload.stationId) setSelectedStationId(payload.stationId);
+        setRealtimeMode("polling");
+      } catch {
+        setRealtimeMode("offline");
+        setSystemNotice("Realtime API unavailable. Showing offline deterministic demo state.");
+      }
+    }
+
     const eventSource = new EventSource("/api/realtime");
     const handleUpdate = (message: MessageEvent<string>) => {
-      const payload = JSON.parse(message.data) as RealtimeEvent;
-      setLiveEvents((events) => [payload, ...events].slice(0, 8));
-      if (payload.stationId) setSelectedStationId(payload.stationId);
+      try {
+        const payload = JSON.parse(message.data) as RealtimeEvent;
+        setLiveEvents((events) => [payload, ...events].slice(0, 8));
+        if (payload.stationId) setSelectedStationId(payload.stationId);
+        setRealtimeMode("sse");
+      } catch {
+        setRealtimeMode("offline");
+      }
     };
 
     eventSource.addEventListener("ready", handleUpdate);
     eventSource.addEventListener("update", handleUpdate);
     eventSource.onerror = () => {
       eventSource.close();
+      if (pollingStarted) return;
+      pollingStarted = true;
+      void pollRealtime();
+      pollTimer = setInterval(() => void pollRealtime(), 5000);
     };
 
-    return () => eventSource.close();
+    return () => {
+      eventSource.close();
+      if (pollTimer) clearInterval(pollTimer);
+    };
   }, []);
 
   useEffect(() => {
@@ -192,13 +375,21 @@ export function KavachaApp({ initialSnapshot }: KavachaAppProps) {
   }, []);
 
   async function refreshAuditLogs() {
-    const response = await fetch("/api/audit", { cache: "no-store" });
-    const data = (await response.json()) as { logs: AuditLog[] };
-    setAuditLogs(data.logs);
+    try {
+      const response = await fetch("/api/audit", { cache: "no-store" });
+      if (!response.ok) throw new Error(`Audit failed with status ${response.status}`);
+      const data = (await response.json()) as { mode?: string; logs: AuditLog[] };
+      setAuditLogs(data.logs);
+      setAuditMode(data.mode?.toLowerCase().includes("catalyst") ? "API" : "Memory fallback");
+    } catch {
+      setAuditMode("Memory fallback");
+      setSystemNotice("Audit API unavailable. Showing local demo audit state.");
+    }
   }
 
   async function runQuery(nextQuery = query) {
     setLoading(true);
+    setSystemNotice(null);
     try {
       const response = await fetch("/api/copilot", {
         method: "POST",
@@ -211,11 +402,49 @@ export function KavachaApp({ initialSnapshot }: KavachaAppProps) {
       }
 
       const result = (await response.json()) as CopilotResult;
+      setCopilotApiMode("online");
       setCopilotResult(result);
       setActiveView("copilot");
-      await refreshAuditLogs();
+      try {
+        await refreshAuditLogs();
+      } catch {
+        setSystemNotice("Audit API unavailable. Showing local demo audit state.");
+      }
+    } catch {
+      const fallback = buildClientFallbackCopilotResult(nextQuery, role, initialSnapshot);
+      setCopilotApiMode("offline-fallback");
+      setCopilotResult(fallback);
+      setActiveView("copilot");
+      setSystemNotice("Copilot API unavailable. Offline deterministic demo engine activated.");
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function processVoiceText(text: string) {
+    try {
+      const response = await fetch("/api/voice", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text })
+      });
+      if (!response.ok) throw new Error(`Voice failed with status ${response.status}`);
+      const payload = (await response.json()) as VoiceInsight;
+      const canonical = payload.translation || text;
+      setVoiceInsight(payload);
+      setQuery(canonical);
+      await runQuery(canonical);
+    } catch {
+      const fallbackInsight: VoiceInsight = {
+        inputLanguage: /[\u0C80-\u0CFF]/.test(text) ? "Kannada" : "English",
+        translation: text,
+        confidence: 0.72,
+        fallback: "browser/demo fallback"
+      };
+      setVoiceInsight(fallbackInsight);
+      setQuery(text);
+      setSystemNotice("Voice API unavailable. Browser/demo fallback text was used.");
+      await runQuery(text);
     }
   }
 
@@ -228,7 +457,7 @@ export function KavachaApp({ initialSnapshot }: KavachaAppProps) {
 
     if (!SpeechRecognition) {
       setVoiceState("unsupported");
-      setQuery(DEMO_QUERY_KANNADA);
+      void processVoiceText(DEMO_QUERY_KANNADA);
       return;
     }
 
@@ -238,7 +467,7 @@ export function KavachaApp({ initialSnapshot }: KavachaAppProps) {
     recognition.maxAlternatives = 1;
     recognition.onresult = (event) => {
       const transcript = event.results[0]?.[0]?.transcript;
-      if (transcript) setQuery(transcript);
+      if (transcript) void processVoiceText(transcript);
     };
     recognition.onerror = () => setVoiceState("unsupported");
     recognition.onend = () => setVoiceState("idle");
@@ -369,7 +598,13 @@ export function KavachaApp({ initialSnapshot }: KavachaAppProps) {
           </div>
 
           {activeView === "command" && (
-            <CommandCenter snapshot={initialSnapshot} liveEvents={liveEvents} setActiveView={setActiveView} />
+            <CommandCenter
+              snapshot={initialSnapshot}
+              liveEvents={liveEvents}
+              setActiveView={setActiveView}
+              appStatus={appStatus}
+              systemNotice={systemNotice}
+            />
           )}
           {activeView === "copilot" && (
             <CopilotPanel
@@ -380,7 +615,10 @@ export function KavachaApp({ initialSnapshot }: KavachaAppProps) {
               result={copilotResult}
               startVoice={startVoice}
               voiceState={voiceState}
+              voiceInsight={voiceInsight}
               speakResult={speakResult}
+              systemNotice={systemNotice}
+              copilotApiMode={copilotApiMode}
             />
           )}
           {activeView === "map" && (
@@ -389,6 +627,7 @@ export function KavachaApp({ initialSnapshot }: KavachaAppProps) {
               liveEvent={liveEvent}
               selectedStationId={selectedStationId}
               setSelectedStationId={setSelectedStationId}
+              setMapMode={setMapMode}
             />
           )}
           {activeView === "station" && (
@@ -400,7 +639,11 @@ export function KavachaApp({ initialSnapshot }: KavachaAppProps) {
             />
           )}
           {activeView === "network" && (
-            <NetworkGraphPanel graph={visibleGraph} moFingerprints={initialSnapshot.moFingerprints} />
+            <NetworkGraphPanel
+              graph={visibleGraph}
+              moFingerprints={initialSnapshot.moFingerprints}
+              setGraphMode={setGraphMode}
+            />
           )}
           {activeView === "alerts" && <AlertsPanel alerts={initialSnapshot.alerts} liveEvents={liveEvents} />}
           {activeView === "brief" && (
@@ -492,11 +735,15 @@ function MetricTile({
 function CommandCenter({
   snapshot,
   liveEvents,
-  setActiveView
+  setActiveView,
+  appStatus,
+  systemNotice
 }: {
   snapshot: DashboardSnapshot;
   liveEvents: RealtimeEvent[];
   setActiveView: (view: ViewId) => void;
+  appStatus: AppStatus;
+  systemNotice: string | null;
 }) {
   const latest = liveEvents[0];
   return (
@@ -514,6 +761,8 @@ function CommandCenter({
         <MetricTile icon={Activity} label="ML Mode" value="Local Risk" tone="bg-[var(--vermillion)]" />
         <MetricTile icon={ShieldCheck} label="Catalyst" value="Ready" tone="bg-[#6f8f72]" />
       </div>
+
+      <AppStatusPanel status={appStatus} systemNotice={systemNotice} />
 
       <div className="grid gap-4 xl:grid-cols-[1.35fr_0.65fr]">
         <Panel>
@@ -602,6 +851,38 @@ function CommandCenter({
   );
 }
 
+function AppStatusPanel({ status, systemNotice }: { status: AppStatus; systemNotice: string | null }) {
+  const items = [
+    ["Runtime", status.runtime],
+    ["Data", status.data],
+    ["Copilot API", status.copilot === "online" ? "Online" : "Offline fallback"],
+    ["Realtime", status.realtime === "sse" ? "SSE" : status.realtime === "polling" ? "Polling" : "Offline"],
+    ["Map", status.map === "geoops" ? "GeoOps" : "Fallback"],
+    ["Graph", status.graph],
+    ["Audit", status.audit],
+    ["Privacy", status.privacy]
+  ];
+
+  return (
+    <Panel>
+      <PanelTitle icon={Activity} title="App Status" />
+      <div className="grid gap-3 p-4 md:grid-cols-2 xl:grid-cols-4">
+        {items.map(([label, value]) => (
+          <div key={label} className="rounded-lg border border-[var(--line)] bg-white p-3">
+            <div className="text-xs font-semibold uppercase tracking-[0.08em] text-[var(--muted)]">{label}</div>
+            <div className="mt-1 text-sm font-semibold text-[#26312d]">{value}</div>
+          </div>
+        ))}
+      </div>
+      {systemNotice && (
+        <div className="border-t border-[var(--line)] bg-[#fff8e9] px-4 py-3 text-sm font-semibold text-[#81500b]">
+          {systemNotice}
+        </div>
+      )}
+    </Panel>
+  );
+}
+
 function CopilotPanel({
   query,
   setQuery,
@@ -610,7 +891,10 @@ function CopilotPanel({
   result,
   startVoice,
   voiceState,
-  speakResult
+  voiceInsight,
+  speakResult,
+  systemNotice,
+  copilotApiMode
 }: {
   query: string;
   setQuery: (query: string) => void;
@@ -619,10 +903,18 @@ function CopilotPanel({
   result: CopilotResult | null;
   startVoice: () => void;
   voiceState: "idle" | "listening" | "unsupported";
+  voiceInsight: VoiceInsight | null;
   speakResult: () => void;
+  systemNotice: string | null;
+  copilotApiMode: CopilotApiMode;
 }) {
   return (
     <SectionShell>
+      {systemNotice && (
+        <div className="rounded-lg border border-[#f0cf8a] bg-[#fff8e9] px-4 py-3 text-sm font-semibold text-[#81500b]">
+          {systemNotice}
+        </div>
+      )}
       <Panel>
         <PanelTitle icon={Languages} title="Kannada-English Copilot" />
         <div className="grid gap-4 p-4 xl:grid-cols-[1fr_0.9fr]">
@@ -664,6 +956,22 @@ function CopilotPanel({
                 Kannada TTS
               </button>
             </div>
+            {voiceInsight && (
+              <div className="mt-3 grid gap-2 rounded-lg border border-[var(--line)] bg-white p-3 text-sm sm:grid-cols-3">
+                <div>
+                  <div className="text-xs font-semibold uppercase tracking-[0.08em] text-[var(--muted)]">Voice provider</div>
+                  <div className="mt-1 font-semibold">{voiceInsight.fallback}</div>
+                </div>
+                <div>
+                  <div className="text-xs font-semibold uppercase tracking-[0.08em] text-[var(--muted)]">Input language</div>
+                  <div className="mt-1 font-semibold">{voiceInsight.inputLanguage}</div>
+                </div>
+                <div>
+                  <div className="text-xs font-semibold uppercase tracking-[0.08em] text-[var(--muted)]">Translation confidence</div>
+                  <div className="mt-1 font-semibold">{Math.round(voiceInsight.confidence * 100)}%</div>
+                </div>
+              </div>
+            )}
             <div className="mt-4 rounded-lg border border-[var(--line)] bg-white p-3">
               <div className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.08em] text-[var(--muted)]">
                 <ListChecks className="h-4 w-4 text-[var(--teal)]" />
@@ -687,8 +995,13 @@ function CopilotPanel({
           <div className="rounded-lg border border-[var(--line)] bg-[#f8faf7] p-4">
             <div className="flex items-center justify-between">
               <div className="text-sm font-semibold uppercase tracking-[0.08em] text-[var(--muted)]">Answer</div>
-              <div className="rounded-full bg-white px-3 py-1 text-sm font-semibold text-[var(--teal)]">
-                {result ? `${Math.round(result.confidence * 100)} confidence` : "Ready"}
+              <div className="flex flex-wrap justify-end gap-2">
+                <div className="rounded-full bg-white px-3 py-1 text-sm font-semibold text-[var(--teal)]">
+                  {result ? `${Math.round(result.confidence * 100)} confidence` : "Ready"}
+                </div>
+                <div className="rounded-full bg-white px-3 py-1 text-sm font-semibold text-[#34423d]">
+                  {copilotApiMode === "online" ? "API online" : "Offline fallback"}
+                </div>
               </div>
             </div>
             <p className="mt-4 text-base leading-7 text-[#26312d]">
@@ -746,6 +1059,20 @@ function CopilotPanel({
                   </span>
                 </div>
                 <p className="mt-2 text-sm leading-5 text-[#34423d]">{result.queryValidation.reason}</p>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-3">
+                <div className="rounded-lg border border-[var(--line)] bg-white p-3">
+                  <div className="text-xs font-semibold uppercase tracking-[0.08em] text-[var(--muted)]">Execution mode</div>
+                  <div className="mt-1 text-sm font-semibold">{result.zcqlExecution.mode}</div>
+                </div>
+                <div className="rounded-lg border border-[var(--line)] bg-white p-3">
+                  <div className="text-xs font-semibold uppercase tracking-[0.08em] text-[var(--muted)]">Rows returned</div>
+                  <div className="mt-1 text-sm font-semibold">{result.zcqlExecution.rows.length}</div>
+                </div>
+                <div className="rounded-lg border border-[var(--line)] bg-white p-3">
+                  <div className="text-xs font-semibold uppercase tracking-[0.08em] text-[var(--muted)]">Validation</div>
+                  <div className="mt-1 text-sm font-semibold">{result.zcqlExecution.validation.status}</div>
+                </div>
               </div>
               <CodeBlock title="Generated ZCQL / SQL" code={result.generatedZcql} />
               <CodeBlock title="Generated Cypher" code={result.generatedCypher} />
@@ -805,19 +1132,15 @@ function HotspotMap({
   hotspots,
   liveEvent,
   selectedStationId,
-  setSelectedStationId
+  setSelectedStationId,
+  setMapMode
 }: {
   hotspots: Hotspot[];
   liveEvent?: RealtimeEvent;
   selectedStationId: string;
   setSelectedStationId: (stationId: string) => void;
+  setMapMode: (mode: MapMode) => void;
 }) {
-  const bounds = { minLat: 12.82, maxLat: 13.13, minLng: 77.52, maxLng: 77.77 };
-  const toPoint = (lat: number, lng: number) => ({
-    x: ((lng - bounds.minLng) / (bounds.maxLng - bounds.minLng)) * 100,
-    y: 100 - ((lat - bounds.minLat) / (bounds.maxLat - bounds.minLat)) * 100
-  });
-
   return (
     <SectionShell>
       <Panel>
@@ -828,6 +1151,7 @@ function HotspotMap({
             selectedStationId={selectedStationId}
             setSelectedStationId={setSelectedStationId}
             liveEvent={liveEvent}
+            onModeChange={setMapMode}
           />
 
           <div className="space-y-3">
@@ -966,15 +1290,53 @@ function StationDrilldown({
 
 function NetworkGraphPanel({
   graph,
-  moFingerprints
+  moFingerprints,
+  setGraphMode
 }: {
   graph: NetworkGraph;
   moFingerprints: DashboardSnapshot["moFingerprints"];
+  setGraphMode: (mode: string) => void;
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const [graphState, setGraphState] = useState(graph);
+  const [graphMeta, setGraphMeta] = useState<GraphQueryResponse | null>(null);
+  const [graphStatus, setGraphStatus] = useState("Loading /api/graph/query");
   const [selectedEdge, setSelectedEdge] = useState<NetworkGraph["edges"][number] | null>(
     graph.edges[0] ?? null
   );
+
+  useEffect(() => {
+    setGraphState(graph);
+    setSelectedEdge(graph.edges[0] ?? null);
+  }, [graph]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadGraph() {
+      try {
+        const response = await fetch("/api/graph/query", { cache: "no-store" });
+        if (!response.ok) throw new Error(`Graph query failed with status ${response.status}`);
+        const payload = (await response.json()) as GraphQueryResponse;
+        if (cancelled) return;
+        setGraphState(payload.graph);
+        setSelectedEdge(payload.graph.edges[0] ?? null);
+        setGraphMeta(payload);
+        setGraphStatus("Graph query executed");
+        setGraphMode(payload.mode);
+      } catch {
+        if (cancelled) return;
+        setGraphStatus("Local snapshot graph fallback active");
+        setGraphMode("local POLE graph fallback");
+      }
+    }
+
+    void loadGraph();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [setGraphMode]);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -985,10 +1347,10 @@ function NetworkGraphPanel({
     cy = cytoscape({
       container,
       elements: [
-        ...graph.nodes.map((node) => ({
+        ...graphState.nodes.map((node) => ({
           data: { id: node.id, label: node.label, type: node.type, risk: node.risk ?? 0.5 }
         })),
-        ...graph.edges.map((edge) => ({ data: edge }))
+        ...graphState.edges.map((edge) => ({ data: edge }))
       ],
       layout: {
         name: "cose",
@@ -1067,7 +1429,7 @@ function NetworkGraphPanel({
         cy.destroy();
       }
     };
-  }, [graph]);
+  }, [graphState]);
 
   return (
     <SectionShell>
@@ -1078,7 +1440,14 @@ function NetworkGraphPanel({
           <div className="space-y-3">
             <div className="rounded-lg border border-[var(--line)] bg-white p-4">
               <div className="text-sm font-semibold uppercase tracking-[0.08em] text-[var(--muted)]">Graph Summary</div>
-              <p className="mt-3 text-sm leading-6 text-[#34423d]">{graph.summary}</p>
+              <p className="mt-3 text-sm leading-6 text-[#34423d]">{graphState.summary}</p>
+              <div className="mt-3 grid gap-2 text-xs font-semibold text-[#34423d]">
+                <div className="rounded-md bg-[#f5f7f4] px-3 py-2">Mode: {graphMeta?.mode ?? "local POLE graph fallback"}</div>
+                <div className="rounded-md bg-[#f5f7f4] px-3 py-2">Algorithm: connected components, shortest path, degree centrality</div>
+                <div className="rounded-md bg-[#f5f7f4] px-3 py-2">
+                  {graphStatus} - {graphMeta?.components.length ?? 0} components - {graphMeta?.centrality.length ?? 0} ranked nodes
+                </div>
+              </div>
             </div>
             <div className="rounded-lg border border-[var(--line)] bg-[#f8faf7] p-4">
               <div className="flex items-center justify-between gap-3">

@@ -20,7 +20,7 @@ function csv<T extends object>(rows: T[]) {
 
 const data = getSyntheticData();
 
-writeFileSync(join(outDir, "cases.csv"), csv(data.cases.slice(0, 50000)), "utf8");
+writeFileSync(join(outDir, "cases.csv"), csv(data.cases), "utf8");
 writeFileSync(join(outDir, "persons.csv"), csv(data.people), "utf8");
 writeFileSync(join(outDir, "evidence_links.csv"), csv(data.evidence), "utf8");
 writeFileSync(join(outDir, "modus_operandi.csv"), csv(data.modus), "utf8");

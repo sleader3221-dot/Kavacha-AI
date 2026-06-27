@@ -15,7 +15,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid mission brief request" }, { status: 400 });
   }
 
-  const result = answerCopilotQuery(parsed.data);
+  const result = await answerCopilotQuery(parsed.data);
   return NextResponse.json({
     title: "Kavacha AI Mission Brief",
     query: parsed.data.query,

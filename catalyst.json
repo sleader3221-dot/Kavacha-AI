@@ -5,7 +5,6 @@
       "name": "kavacha-ai",
       "source": ".",
       "platform": "nodejs",
-      "build_path": ".next",
       "scripts": {
         "predeploy": "npm ci && npm run build",
         "start": "npm run start"
@@ -24,7 +23,8 @@
         "MASK_PII_BY_DEFAULT": "true",
         "SENSITIVE_CASE_AGGREGATE_ONLY": "true",
         "REPORTS_ENABLED": "true",
-        "MISSION_BRIEF_QR_ENABLED": "true"
+        "MISSION_BRIEF_QR_ENABLED": "true",
+        "PORT": "3000"
       }
     }
   ]

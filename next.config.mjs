@@ -9,6 +9,7 @@ const projectRoot = path.dirname(fileURLToPath(import.meta.url));
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  output: "standalone",
   poweredByHeader: false,
   reactStrictMode: true,
   turbopack: {

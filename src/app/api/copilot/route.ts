@@ -23,7 +23,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const result = answerCopilotQuery(parsed.data);
+    const result = await answerCopilotQuery(parsed.data);
     writeAuditToCatalystOrFallback(result.audit);
 
     return NextResponse.json(result, {

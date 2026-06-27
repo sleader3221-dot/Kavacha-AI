@@ -1,4 +1,5 @@
 import { addDays, format } from "date-fns";
+import { executeZcqlOrFallback } from "@/lib/catalyst/zcql";
 import { OFFICIAL_STATS, RESEARCH_SOURCES } from "./catalog";
 import { sha256, shortHash } from "./hash";
 import { getSyntheticData } from "./synthetic-data";
@@ -207,7 +208,7 @@ function kannadaAnswerText(hotspots: Hotspot[]) {
   return `ಮೇ 2026 ವಿಶ್ಲೇಷಣೆಯಲ್ಲಿ ಹೆಚ್ಚು ಗಮನ ಕೊಡಬೇಕಾದ ಪ್ರದೇಶಗಳು: ${top}. ಈ ಉತ್ತರವು ಪ್ರಕರಣ ಎಣಿಕೆ, ಹಾಟ್‌ಸ್ಪಾಟ್ ಮಾದರಿ, ಗ್ರಾಫ್ ಲಿಂಕ್ ವಿಶ್ಲೇಷಣೆ ಮತ್ತು ಆಡಿಟ್ ಟ್ರೇಲ್ ಆಧಾರಿತವಾಗಿದೆ. ಯಾವುದೇ ವೈಯಕ್ತಿಕ ಪ್ರೊಫೈಲಿಂಗ್ ಇಲ್ಲ; ಮಾನವ ಅಧಿಕಾರಿ ಅನುಮೋದನೆಯೊಂದಿಗೆ ಬೀಟ್ ಮಟ್ಟದ ಕ್ರಮ ಮಾತ್ರ ಶಿಫಾರಸು ಮಾಡಲಾಗಿದೆ.`;
 }
 
-export function answerCopilotQuery(input: CopilotInput): CopilotResult {
+export async function answerCopilotQuery(input: CopilotInput): Promise<CopilotResult> {
   const data = getSyntheticData();
   const language = detectLanguage(input.query);
   const heads = detectHeads(input.query);
@@ -218,6 +219,7 @@ export function answerCopilotQuery(input: CopilotInput): CopilotResult {
   const generatedZcql = zcqlFor(heads, input.role);
   const generatedCypher = cypherFor(heads);
   const queryValidation = validateZcql(generatedZcql);
+  const zcqlExecution = await executeZcqlOrFallback(generatedZcql);
   const confidence = Number(
     Math.min(0.96, 0.82 + hotspots.reduce((sum, item) => sum + item.confidence, 0) / hotspots.length / 10).toFixed(2)
   );
@@ -258,6 +260,7 @@ export function answerCopilotQuery(input: CopilotInput): CopilotResult {
     generatedZcql,
     generatedCypher,
     queryValidation,
+    zcqlExecution,
     limitations: [
       "Prototype uses deterministic synthetic case-level data generated from public aggregate patterns.",
       "Hotspot output is area/time/category intelligence and must not be used for individual profiling.",

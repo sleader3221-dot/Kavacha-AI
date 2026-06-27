@@ -1,7 +1,8 @@
 import { validateReadOnlyZcql } from "@/lib/security/query-allowlist";
 import { getSyntheticData } from "@/lib/synthetic-data";
+import type { ZcqlExecutionResult } from "@/lib/types";
 
-export async function executeZcqlOrFallback(query: string) {
+export async function executeZcqlOrFallback(query: string): Promise<ZcqlExecutionResult> {
   const validation = validateReadOnlyZcql(query);
   if (validation.status === "blocked") {
     return {

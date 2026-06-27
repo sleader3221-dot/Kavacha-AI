@@ -180,6 +180,12 @@ export interface QueryValidation {
   reason: string;
 }
 
+export interface ZcqlExecutionResult {
+  mode: "blocked" | "catalyst-ready" | "synthetic-fallback";
+  validation: QueryValidation;
+  rows: Array<Record<string, string | number | boolean | null>>;
+}
+
 export interface CopilotResult {
   requestId: string;
   answer: string;
@@ -192,6 +198,7 @@ export interface CopilotResult {
   generatedZcql: string;
   generatedCypher: string;
   queryValidation: QueryValidation;
+  zcqlExecution: ZcqlExecutionResult;
   limitations: string[];
   nextActions: string[];
   citations: string[];
